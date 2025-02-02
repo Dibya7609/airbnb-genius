@@ -6,10 +6,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Upload, MapPin, FileText, Sparkles } from 'lucide-react';
 
+interface PhotoContent {
+  imageUrl: string;
+  visualDescription: string;
+  caption: string;
+}
+
 interface GeneratedContent {
   title: string;
   description: string;
-  photoDescriptions: string[];
+  photos: PhotoContent[];
   neighborhood: {
     description: string;
     attractions: Array<{
@@ -25,6 +31,7 @@ interface GeneratedContent {
 const ListingForm = () => {
   const { toast } = useToast();
   const [images, setImages] = useState<File[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [address, setAddress] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -32,7 +39,12 @@ const ListingForm = () => {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setImages(Array.from(e.target.files));
+      const files = Array.from(e.target.files);
+      setImages(files);
+      
+      // Create URLs for preview
+      const urls = files.map(file => URL.createObjectURL(file));
+      setImageUrls(urls);
     }
   };
 
@@ -56,6 +68,13 @@ const ListingForm = () => {
     
     // Simulated API call - replace with actual AI integration
     setTimeout(() => {
+      // Generate content for each uploaded image
+      const photoContents: PhotoContent[] = imageUrls.map((url, index) => ({
+        imageUrl: url,
+        visualDescription: `Detailed visual description for image ${index + 1}: Professional photograph showcasing the property's ${index % 2 === 0 ? 'exterior beauty' : 'interior elegance'} with perfect lighting and composition.`,
+        caption: `${index % 2 === 0 ? 'Stunning exterior view' : 'Elegant interior space'} highlighting the property's unique features and modern design elements.`
+      }));
+
       setGeneratedContent({
         title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
         description: `Experience Paradise at Your Doorstep
@@ -81,11 +100,7 @@ Other Details to Note:
 • Pet-friendly (with prior approval)
 • Quiet hours after 10 PM
 • Enhanced cleaning protocol following all safety guidelines`,
-        photoDescriptions: [
-          "Spacious living room with panoramic ocean views and modern furnishings",
-          "Gourmet kitchen featuring high-end appliances and breakfast bar",
-          "Master bedroom suite with private balcony and ocean vistas"
-        ],
+        photos: photoContents,
         neighborhood: {
           description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
           attractions: [
@@ -213,16 +228,32 @@ Other Details to Note:
 
               <div>
                 <h4 className="font-medium mb-2">Description</h4>
-                <p className="p-3 bg-secondary rounded-lg">{generatedContent.description}</p>
+                <p className="p-3 bg-secondary rounded-lg whitespace-pre-wrap">{generatedContent.description}</p>
               </div>
 
               <div>
-                <h4 className="font-medium mb-2">Photo Descriptions</h4>
-                <ul className="space-y-2">
-                  {generatedContent.photoDescriptions.map((desc, index) => (
-                    <li key={index} className="p-3 bg-secondary rounded-lg">{desc}</li>
+                <h4 className="font-medium mb-2">Photos and Descriptions</h4>
+                <div className="space-y-4">
+                  {generatedContent.photos.map((photo, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-secondary rounded-lg">
+                      <div className="aspect-video relative">
+                        <img
+                          src={photo.imageUrl}
+                          alt={`Property image ${index + 1}`}
+                          className="absolute inset-0 w-full h-full object-cover rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <h5 className="font-medium">Visual Description</h5>
+                        <p className="text-sm">{photo.visualDescription}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <h5 className="font-medium">Caption</h5>
+                        <p className="text-sm">{photo.caption}</p>
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
 
               <div>
