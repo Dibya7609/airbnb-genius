@@ -57,15 +57,37 @@ const ListingForm = () => {
     // Simulated API call - replace with actual AI integration
     setTimeout(() => {
       setGeneratedContent({
-        title: "Luxurious Beachfront Villa with Stunning Ocean Views",
-        description: "Experience paradise in this modern beachfront villa. Wake up to breathtaking ocean views and fall asleep to the sound of gentle waves. This newly renovated property offers the perfect blend of luxury and comfort.",
+        title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
+        description: `Experience Paradise at Your Doorstep
+
+Your Property:
+Wake up to the gentle sound of waves in this stunning beachfront villa. Floor-to-ceiling windows frame breathtaking ocean views, while modern architecture seamlessly blends indoor and outdoor living. The open-concept design creates an airy, light-filled space perfect for both relaxation and entertainment.
+
+Guest Access:
+✓ Private beach access
+✓ Fully equipped gourmet kitchen
+✓ Heated infinity pool
+✓ Smart home features
+✓ Dedicated workspace
+✓ High-speed WiFi throughout
+
+Interaction with Guests:
+Your privacy is our priority. Our 24/7 concierge service is just a message away, ready to assist with anything from restaurant reservations to local experiences. We'll greet you personally at check-in and remain available throughout your stay while respecting your space.
+
+Other Details to Note:
+• Self check-in available with smart locks
+• Daily housekeeping included
+• Beach essentials provided
+• Pet-friendly (with prior approval)
+• Quiet hours after 10 PM
+• Enhanced cleaning protocol following all safety guidelines`,
         photoDescriptions: [
-          "Spacious living room with panoramic ocean views",
-          "Modern kitchen with high-end appliances",
-          "Master bedroom suite with private balcony"
+          "Spacious living room with panoramic ocean views and modern furnishings",
+          "Gourmet kitchen featuring high-end appliances and breakfast bar",
+          "Master bedroom suite with private balcony and ocean vistas"
         ],
         neighborhood: {
-          description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining.",
+          description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
           attractions: [
             {
               name: "Palm Beach Boardwalk",
