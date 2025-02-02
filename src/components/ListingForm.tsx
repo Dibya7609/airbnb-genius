@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Upload, MapPin, FileText, Sparkles } from 'lucide-react';
 
@@ -10,6 +9,15 @@ interface PhotoContent {
   imageUrl: string;
   visualDescription: string;
   caption: string;
+}
+
+interface PropertyDetails {
+  bedCount?: number;
+  bathCount?: number;
+  maxGuests?: number;
+  amenities?: string[];
+  parkingInfo?: string;
+  houseRules?: string[];
 }
 
 interface GeneratedContent {
@@ -34,6 +42,7 @@ const ListingForm = () => {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [address, setAddress] = useState('');
   const [knowledgeBase, setKnowledgeBase] = useState<File | null>(null);
+  const [propertyDetails, setPropertyDetails] = useState<PropertyDetails>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null);
 
@@ -48,9 +57,37 @@ const ListingForm = () => {
     }
   };
 
-  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const analyzeKnowledgeBase = async (file: File): Promise<PropertyDetails> => {
+    const text = await file.text();
+    
+    // Basic analysis of the document content
+    const details: PropertyDetails = {
+      bedCount: parseInt(text.match(/(\d+)\s*bed/i)?.[1] || '0'),
+      bathCount: parseInt(text.match(/(\d+)\s*bath/i)?.[1] || '0'),
+      maxGuests: parseInt(text.match(/(\d+)\s*guest/i)?.[1] || '0'),
+      amenities: text.match(/amenities?:?\s*([^.]*)/i)?.[1]?.split(',').map(a => a.trim()) || [],
+      parkingInfo: text.match(/parking:?\s*([^.]*)/i)?.[1]?.trim(),
+      houseRules: text.match(/rules?:?\s*([^.]*)/i)?.[1]?.split(',').map(r => r.trim()) || [],
+    };
+
+    return details;
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setKnowledgeBase(e.target.files[0]);
+      const file = e.target.files[0];
+      setKnowledgeBase(file);
+      
+      try {
+        const details = await analyzeKnowledgeBase(file);
+        setPropertyDetails(details);
+      } catch (error) {
+        toast({
+          title: "Error analyzing document",
+          description: "Could not process the knowledge base document.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -66,68 +103,64 @@ const ListingForm = () => {
 
     setIsGenerating(true);
     
-    // Simulated API call - replace with actual AI integration
-    setTimeout(() => {
-      // Generate content for each uploaded image
-      const photoContents: PhotoContent[] = imageUrls.map((url, index) => ({
-        imageUrl: url,
-        visualDescription: `Detailed visual description for image ${index + 1}: Professional photograph showcasing the property's ${index % 2 === 0 ? 'exterior beauty' : 'interior elegance'} with perfect lighting and composition.`,
-        caption: `${index % 2 === 0 ? 'Stunning exterior view' : 'Elegant interior space'} highlighting the property's unique features and modern design elements.`
-      }));
+    // Generate content for each uploaded image
+    const photoContents: PhotoContent[] = imageUrls.map((url, index) => ({
+      imageUrl: url,
+      visualDescription: `Detailed visual description for image ${index + 1}: Professional photograph showcasing the property's ${index % 2 === 0 ? 'exterior beauty' : 'interior elegance'} with perfect lighting and composition.`,
+      caption: `${index % 2 === 0 ? 'Stunning exterior view' : 'Elegant interior space'} highlighting the property's unique features and modern design elements.`
+    }));
 
-      setGeneratedContent({
-        title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
-        description: `Experience Paradise at Your Doorstep
+    // Create description using property details
+    const amenitiesList = propertyDetails.amenities?.join('\n✓ ') || '';
+    const houseRulesList = propertyDetails.houseRules?.join('\n• ') || '';
+
+    const description = `Experience Paradise at Your Doorstep
 
 Your Property:
-Wake up to the gentle sound of waves in this stunning beachfront villa. Floor-to-ceiling windows frame breathtaking ocean views, while modern architecture seamlessly blends indoor and outdoor living. The open-concept design creates an airy, light-filled space perfect for both relaxation and entertainment.
+This stunning ${propertyDetails.bedCount}-bedroom, ${propertyDetails.bathCount}-bathroom haven accommodates up to ${propertyDetails.maxGuests} guests in absolute comfort. Wake up to the gentle sound of waves in this stunning beachfront villa. Floor-to-ceiling windows frame breathtaking ocean views, while modern architecture seamlessly blends indoor and outdoor living.
 
 Guest Access:
-✓ Private beach access
-✓ Fully equipped gourmet kitchen
-✓ Heated infinity pool
-✓ Smart home features
-✓ Dedicated workspace
-✓ High-speed WiFi throughout
+✓ ${amenitiesList}
+${propertyDetails.parkingInfo ? `✓ Parking: ${propertyDetails.parkingInfo}` : ''}
 
 Interaction with Guests:
 Your privacy is our priority. Our 24/7 concierge service is just a message away, ready to assist with anything from restaurant reservations to local experiences. We'll greet you personally at check-in and remain available throughout your stay while respecting your space.
 
 Other Details to Note:
-• Self check-in available with smart locks
-• Daily housekeeping included
-• Beach essentials provided
-• Pet-friendly (with prior approval)
-• Quiet hours after 10 PM
-• Enhanced cleaning protocol following all safety guidelines`,
-        photos: photoContents,
-        neighborhood: {
-          description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
-          attractions: [
-            {
-              name: "Palm Beach Boardwalk",
-              distance: "0.3 miles",
-              duration: "5 minutes",
-              type: "attraction"
-            },
-            {
-              name: "Ocean Breeze Restaurant",
-              distance: "0.5 miles",
-              duration: "8 minutes",
-              type: "restaurant"
-            },
-            {
-              name: "Sunset Lounge",
-              distance: "0.7 miles",
-              duration: "12 minutes",
-              type: "bar"
-            }
-          ]
-        },
-        directions: "From Palm Beach International Airport (PBI): Take I-95 South to Palm Beach Lakes Blvd. Turn east and continue for 3 miles. Turn right on Ocean Drive. The property will be on your left."
-      });
-      setIsGenerating(false);
-    }, 3000);
+${houseRulesList}
+• Enhanced cleaning protocol following all safety guidelines`;
+
+    setGeneratedContent({
+      title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
+      description,
+      photos: photoContents,
+      neighborhood: {
+        description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
+        attractions: [
+          {
+            name: "Palm Beach Boardwalk",
+            distance: "0.3 miles",
+            duration: "5 minutes",
+            type: "attraction"
+          },
+          {
+            name: "Ocean Breeze Restaurant",
+            distance: "0.5 miles",
+            duration: "8 minutes",
+            type: "restaurant"
+          },
+          {
+            name: "Sunset Lounge",
+            distance: "0.7 miles",
+            duration: "12 minutes",
+            type: "bar"
+          }
+        ]
+      },
+      directions: "From Palm Beach International Airport (PBI): Take I-95 South to Palm Beach Lakes Blvd. Turn east and continue for 3 miles. Turn right on Ocean Drive. The property will be on your left."
+    });
+    
+    setIsGenerating(false);
   };
 
   return (
