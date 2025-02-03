@@ -1,22 +1,17 @@
-import axios from 'axios';
+import { supabase } from "@/integrations/supabase/client";
 
-const DEEPSEEK_API_URL = 'https://api.deepseek.ai/generate-caption';
-
-export const generateCaption = async (imageUrl: string, apiKey: string) => {
+export const generateCaption = async (imageUrl: string) => {
   try {
-    const response = await axios.post(
-      DEEPSEEK_API_URL,
-      {
-        image_url: imageUrl,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    return response.data.caption;
+    const { data, error } = await supabase.functions.invoke('generate-caption', {
+      body: { imageUrl },
+    });
+
+    if (error) {
+      console.error('Error generating caption:', error);
+      return null;
+    }
+
+    return data.caption;
   } catch (error) {
     console.error(`Error generating caption for ${imageUrl}:`, error);
     return null;
@@ -24,14 +19,13 @@ export const generateCaption = async (imageUrl: string, apiKey: string) => {
 };
 
 export const generateCaptionsForImages = async (
-  images: File[],
-  apiKey: string
+  images: File[]
 ): Promise<Array<{ imageUrl: string; caption: string }>> => {
   const captions = [];
   
   for (const image of images) {
     const imageUrl = URL.createObjectURL(image);
-    const caption = await generateCaption(imageUrl, apiKey);
+    const caption = await generateCaption(imageUrl);
     if (caption) {
       captions.push({ imageUrl, caption });
     }

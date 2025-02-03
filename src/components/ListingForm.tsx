@@ -105,8 +105,8 @@ const ListingForm = () => {
     setIsGenerating(true);
     
     try {
-      // Generate captions for each uploaded image using Deepseek AI
-      const photoContents = await generateCaptionsForImages(images, process.env.DEEPSEEK_API_KEY || '');
+      // Generate captions for each uploaded image using OpenRouter AI
+      const photoContents = await generateCaptionsForImages(images);
       
       // Create description using property details
       const amenitiesList = propertyDetails.amenities?.join('\n✓ ') || '';
