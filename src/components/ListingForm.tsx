@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Upload, MapPin, FileText, Sparkles } from 'lucide-react';
+import { generateCaptionsForImages } from '@/services/captionService';
 
 interface PhotoContent {
   imageUrl: string;
@@ -103,18 +104,15 @@ const ListingForm = () => {
 
     setIsGenerating(true);
     
-    // Generate content for each uploaded image
-    const photoContents: PhotoContent[] = imageUrls.map((url, index) => ({
-      imageUrl: url,
-      visualDescription: `Detailed visual description for image ${index + 1}: Professional photograph showcasing the property's ${index % 2 === 0 ? 'exterior beauty' : 'interior elegance'} with perfect lighting and composition.`,
-      caption: `${index % 2 === 0 ? 'Stunning exterior view' : 'Elegant interior space'} highlighting the property's unique features and modern design elements.`
-    }));
+    try {
+      // Generate captions for each uploaded image using Deepseek AI
+      const photoContents = await generateCaptionsForImages(images, process.env.DEEPSEEK_API_KEY || '');
+      
+      // Create description using property details
+      const amenitiesList = propertyDetails.amenities?.join('\n✓ ') || '';
+      const houseRulesList = propertyDetails.houseRules?.join('\n• ') || '';
 
-    // Create description using property details
-    const amenitiesList = propertyDetails.amenities?.join('\n✓ ') || '';
-    const houseRulesList = propertyDetails.houseRules?.join('\n• ') || '';
-
-    const description = `Experience Paradise at Your Doorstep
+      const description = `Experience Paradise at Your Doorstep
 
 Your Property:
 This stunning ${propertyDetails.bedCount}-bedroom, ${propertyDetails.bathCount}-bathroom haven accommodates up to ${propertyDetails.maxGuests} guests in absolute comfort. Wake up to the gentle sound of waves in this stunning beachfront villa. Floor-to-ceiling windows frame breathtaking ocean views, while modern architecture seamlessly blends indoor and outdoor living.
@@ -130,37 +128,48 @@ Other Details to Note:
 ${houseRulesList}
 • Enhanced cleaning protocol following all safety guidelines`;
 
-    setGeneratedContent({
-      title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
-      description,
-      photos: photoContents,
-      neighborhood: {
-        description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
-        attractions: [
-          {
-            name: "Palm Beach Boardwalk",
-            distance: "0.3 miles",
-            duration: "5 minutes",
-            type: "attraction"
-          },
-          {
-            name: "Ocean Breeze Restaurant",
-            distance: "0.5 miles",
-            duration: "8 minutes",
-            type: "restaurant"
-          },
-          {
-            name: "Sunset Lounge",
-            distance: "0.7 miles",
-            duration: "12 minutes",
-            type: "bar"
-          }
-        ]
-      },
-      directions: "From Palm Beach International Airport (PBI): Take I-95 South to Palm Beach Lakes Blvd. Turn east and continue for 3 miles. Turn right on Ocean Drive. The property will be on your left."
-    });
-    
-    setIsGenerating(false);
+      setGeneratedContent({
+        title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
+        description,
+        photos: photoContents.map(({ imageUrl, caption }) => ({
+          imageUrl,
+          visualDescription: `Professional photograph showcasing: ${caption}`,
+          caption,
+        })),
+        neighborhood: {
+          description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
+          attractions: [
+            {
+              name: "Palm Beach Boardwalk",
+              distance: "0.3 miles",
+              duration: "5 minutes",
+              type: "attraction"
+            },
+            {
+              name: "Ocean Breeze Restaurant",
+              distance: "0.5 miles",
+              duration: "8 minutes",
+              type: "restaurant"
+            },
+            {
+              name: "Sunset Lounge",
+              distance: "0.7 miles",
+              duration: "12 minutes",
+              type: "bar"
+            }
+          ]
+        },
+        directions: "From Palm Beach International Airport (PBI): Take I-95 South to Palm Beach Lakes Blvd. Turn east and continue for 3 miles. Turn right on Ocean Drive. The property will be on your left."
+      });
+    } catch (error) {
+      toast({
+        title: "Error Generating Content",
+        description: "There was an error generating captions for your images. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
