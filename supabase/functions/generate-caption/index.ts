@@ -41,24 +41,14 @@ serve(async (req) => {
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`OpenRouter API responded with status ${response.status}`);
+    }
+
     const data = await response.json();
     console.log('OpenRouter API response:', data);
 
     const caption = data.choices[0].message.content;
-    
-    // Store the caption in the database
-    const { data: insertData, error: insertError } = await supabaseAdmin.from('captions').insert([
-      {
-        image_url: imageUrl,
-        caption: caption,
-        user_id: req.headers.get('x-user-id')
-      }
-    ]);
-
-    if (insertError) {
-      console.error('Error storing caption:', insertError);
-      throw insertError;
-    }
 
     return new Response(JSON.stringify({ caption }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
