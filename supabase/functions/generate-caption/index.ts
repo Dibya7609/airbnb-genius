@@ -11,14 +11,14 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+    
 
   try {
     const { imageUrl } = await req.json();
     console.log('Generating caption for image:', imageUrl);
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // First request: Visual Description
+    const visualDescResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
@@ -31,33 +31,74 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant that generates engaging and accurate captions for real estate listing images. Focus on highlighting key features and amenities visible in the images."
+            content: "You are a professional real estate photographer and interior designer. Analyze the image and provide a detailed, professional description of what you see, focusing on architectural features, design elements, and notable aspects that would be relevant for a property listing."
           },
           {
             role: "user",
-            content: `Please generate a descriptive caption for this real estate listing image: ${imageUrl}`
+            content: `Please analyze this image and provide a detailed visual description: ${imageUrl}`
           }
         ]
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API responded with status ${response.status}`);
+    if (!visualDescResponse.ok) {
+      throw new Error(`OpenRouter API responded with status ${visualDescResponse.status}`);
     }
 
-    const data = await response.json();
-    console.log('OpenRouter API response:', data);
+    const visualDescData = await visualDescResponse.json();
+    const visualDescription = visualDescData.choices[0].message.content;
 
-    const caption = data.choices[0].message.content;
-
-    return new Response(JSON.stringify({ caption }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // Second request: Marketing Caption
+    const captionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://lovable.ai',
+        'X-Title': 'Lovable Image Caption Generator',
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional real estate marketing expert. Based on the visual description provided, create a compelling, concise marketing caption that highlights the key selling points and creates emotional appeal."
+          },
+          {
+            role: "user",
+            content: `Based on this description of the image: "${visualDescription}", please create an engaging marketing caption that would appeal to potential renters or buyers.`
+          }
+        ]
+      }),
     });
+
+    if (!captionResponse.ok) {
+      throw new Error(`OpenRouter API responded with status ${captionResponse.status}`);
+    }
+
+    const captionData = await captionResponse.json();
+    const caption = captionData.choices[0].message.content;
+
+    console.log('Generated visual description:', visualDescription);
+    console.log('Generated caption:', caption);
+
+    return new Response(
+      JSON.stringify({ 
+        visualDescription, 
+        caption 
+      }), 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
     console.error('Error in generate-caption function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: error.message }), 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });

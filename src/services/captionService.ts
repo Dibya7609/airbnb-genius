@@ -11,7 +11,10 @@ export const generateCaption = async (imageUrl: string) => {
       return null;
     }
 
-    return data.caption;
+    return {
+      visualDescription: data.visualDescription,
+      caption: data.caption
+    };
   } catch (error) {
     console.error(`Error generating caption for ${imageUrl}:`, error);
     return null;
@@ -20,14 +23,18 @@ export const generateCaption = async (imageUrl: string) => {
 
 export const generateCaptionsForImages = async (
   images: File[]
-): Promise<Array<{ imageUrl: string; caption: string }>> => {
+): Promise<Array<{ imageUrl: string; visualDescription: string; caption: string }>> => {
   const captions = [];
   
   for (const image of images) {
     const imageUrl = URL.createObjectURL(image);
-    const caption = await generateCaption(imageUrl);
-    if (caption) {
-      captions.push({ imageUrl, caption });
+    const result = await generateCaption(imageUrl);
+    if (result) {
+      captions.push({ 
+        imageUrl, 
+        visualDescription: result.visualDescription,
+        caption: result.caption
+      });
     }
   }
   
