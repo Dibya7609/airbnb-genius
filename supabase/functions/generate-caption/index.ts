@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -16,58 +17,71 @@ serve(async (req) => {
 
   try {
     const { imageUrl } = await req.json();
-    console.log('Generating caption for image:', imageUrl);
+    console.log('Analyzing image:', imageUrl);
 
-    // First request: Visual Description
-    const visualDescResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // First request: Room Identification and Visual Description
+    const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://lovable.ai',
-        'X-Title': 'Lovable Image Caption Generator',
+        'X-Title': 'Lovable Real Estate Photo Analyzer',
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "You are a professional real estate photographer and interior designer. Analyze the image and provide a detailed, professional description of what you see, focusing on architectural features, design elements, and notable aspects that would be relevant for a property listing."
+            content: `You are a professional real estate photographer and interior designer. Analyze the image and provide:
+            1. Room/Area identification (e.g., Kitchen, Living Room, etc.)
+            2. A detailed visual description in exactly 200 characters or less, focusing on key features, materials, and layout.
+            Format your response as:
+            Room: [room type]
+            Description: [200-char description]`
           },
           {
             role: "user",
-            content: `Please analyze this image and provide a detailed visual description: ${imageUrl}`
+            content: `Please analyze this real estate photo: ${imageUrl}`
           }
         ]
       }),
     });
 
-    if (!visualDescResponse.ok) {
-      throw new Error(`OpenRouter API responded with status ${visualDescResponse.status}`);
+    if (!analysisResponse.ok) {
+      throw new Error(`OpenRouter API responded with status ${analysisResponse.status}`);
     }
 
-    const visualDescData = await visualDescResponse.json();
-    const visualDescription = visualDescData.choices[0].message.content;
+    const analysisData = await analysisResponse.json();
+    const analysis = analysisData.choices[0].message.content;
+    
+    // Parse the analysis to extract room and description
+    const room = analysis.match(/Room: (.*)/i)?.[1]?.trim() || "Unspecified Room";
+    const description = analysis.match(/Description: (.*)/i)?.[1]?.trim() || "";
 
-    // Second request: Marketing Caption
+    // Second request: Generate Marketing Caption
     const captionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://lovable.ai',
-        'X-Title': 'Lovable Image Caption Generator',
+        'X-Title': 'Lovable Real Estate Caption Generator',
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "You are a professional real estate marketing expert. Based on the visual description provided, create a compelling, concise marketing caption that highlights the key selling points and creates emotional appeal."
+            content: `You are a professional real estate marketing expert. Create a compelling caption that:
+            1. Is exactly between 50-80 characters
+            2. Includes the room type
+            3. Highlights the most striking feature
+            4. Uses engaging but not overly promotional language`
           },
           {
             role: "user",
-            content: `Based on this description of the image: "${visualDescription}", please create an engaging marketing caption that would appeal to potential renters or buyers.`
+            content: `Create a 50-80 character caption for this ${room} with this description: "${description}"`
           }
         ]
       }),
@@ -80,12 +94,16 @@ serve(async (req) => {
     const captionData = await captionResponse.json();
     const caption = captionData.choices[0].message.content;
 
-    console.log('Generated visual description:', visualDescription);
-    console.log('Generated caption:', caption);
+    console.log('Analysis complete:', {
+      room,
+      visualDescription: description,
+      caption
+    });
 
     return new Response(
       JSON.stringify({ 
-        visualDescription, 
+        room,
+        visualDescription: description,
         caption 
       }), 
       {

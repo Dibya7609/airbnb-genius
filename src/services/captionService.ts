@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export const generateCaption = async (imageUrl: string) => {
@@ -12,6 +13,7 @@ export const generateCaption = async (imageUrl: string) => {
     }
 
     return {
+      room: data.room,
       visualDescription: data.visualDescription,
       caption: data.caption
     };
@@ -23,7 +25,7 @@ export const generateCaption = async (imageUrl: string) => {
 
 export const generateCaptionsForImages = async (
   images: File[]
-): Promise<Array<{ imageUrl: string; visualDescription: string; caption: string }>> => {
+): Promise<Array<{ imageUrl: string; room: string; visualDescription: string; caption: string }>> => {
   const captions = [];
   
   for (const image of images) {
@@ -32,6 +34,7 @@ export const generateCaptionsForImages = async (
     if (result) {
       captions.push({ 
         imageUrl, 
+        room: result.room,
         visualDescription: result.visualDescription,
         caption: result.caption
       });

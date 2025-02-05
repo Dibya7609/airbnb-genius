@@ -8,6 +8,7 @@ import { generateCaptionsForImages } from '@/services/captionService';
 
 interface PhotoContent {
   imageUrl: string;
+  room: string;
   visualDescription: string;
   caption: string;
 }
@@ -131,8 +132,9 @@ ${houseRulesList}
       setGeneratedContent({
         title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
         description,
-        photos: photoContents.map(({ imageUrl, caption }) => ({
+        photos: photoContents.map(({ imageUrl, room, caption }) => ({
           imageUrl,
+          room,
           visualDescription: `Professional photograph showcasing: ${caption}`,
           caption,
         })),
@@ -277,13 +279,17 @@ ${houseRulesList}
                 <h4 className="font-medium mb-2">Photos and Descriptions</h4>
                 <div className="space-y-4">
                   {generatedContent.photos.map((photo, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-secondary rounded-lg">
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-3 bg-secondary rounded-lg">
                       <div className="aspect-video relative">
                         <img
                           src={photo.imageUrl}
                           alt={`Property image ${index + 1}`}
                           className="absolute inset-0 w-full h-full object-cover rounded-lg"
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <h5 className="font-medium">Room/Area</h5>
+                        <p className="text-sm">{photo.room}</p>
                       </div>
                       <div className="space-y-2">
                         <h5 className="font-medium">Visual Description</h5>
