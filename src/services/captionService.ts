@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const generateCaption = async (imageUrl: string) => {
   try {
     const { data, error } = await supabase.functions.invoke('generate-caption', {
-      body: { imageUrl },
+      body: { imageUrls: [imageUrl] },
     });
 
     if (error) {
@@ -12,10 +12,16 @@ export const generateCaption = async (imageUrl: string) => {
       return null;
     }
 
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      console.error('Invalid response format:', data);
+      return null;
+    }
+
+    const result = data[0];
     return {
-      room: data.room,
-      visualDescription: data.visualDescription,
-      caption: data.caption
+      room: result.room,
+      visualDescription: result.visualDescription,
+      caption: result.caption
     };
   } catch (error) {
     console.error(`Error generating caption for ${imageUrl}:`, error);
@@ -26,20 +32,31 @@ export const generateCaption = async (imageUrl: string) => {
 export const generateCaptionsForImages = async (
   images: File[]
 ): Promise<Array<{ imageUrl: string; room: string; visualDescription: string; caption: string }>> => {
-  const captions = [];
+  const imageUrls = images.map(image => URL.createObjectURL(image));
   
-  for (const image of images) {
-    const imageUrl = URL.createObjectURL(image);
-    const result = await generateCaption(imageUrl);
-    if (result) {
-      captions.push({ 
-        imageUrl, 
-        room: result.room,
-        visualDescription: result.visualDescription,
-        caption: result.caption
-      });
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-caption', {
+      body: { imageUrls },
+    });
+
+    if (error) {
+      console.error('Error generating captions:', error);
+      return [];
     }
+
+    if (!data || !Array.isArray(data)) {
+      console.error('Invalid response format:', data);
+      return [];
+    }
+
+    return data.map((result, index) => ({
+      imageUrl: imageUrls[index],
+      room: result.room,
+      visualDescription: result.visualDescription,
+      caption: result.caption
+    }));
+  } catch (error) {
+    console.error('Error generating captions:', error);
+    return [];
   }
-  
-  return captions;
-};
+}

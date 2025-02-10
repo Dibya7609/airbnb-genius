@@ -20,6 +20,8 @@ serve(async (req) => {
 
   try {
     const { imageUrls } = await req.json();
+    console.log('Received request with imageUrls:', imageUrls);
+
     if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
       throw new Error("imageUrls must be a non-empty array.");
     }
@@ -27,24 +29,31 @@ serve(async (req) => {
     const results = [];
 
     for (const imageUrl of imageUrls) {
-      console.log('Analyzing image:', imageUrl);
+      console.log('Processing image:', imageUrl);
 
-      const analysisResult = await analyzeImage(imageUrl);
-      console.log('Analysis Result:', analysisResult);
+      // First pass: Identify the room and its features
+      const roomAnalysis = await analyzeImage(imageUrl);
+      console.log('Room analysis:', roomAnalysis);
 
-      const caption = await generateCaption(analysisResult.room, analysisResult.visualDescription);
-      console.log('Generated Caption:', caption);
+      // Second pass: Generate detailed description based on room type
+      const detailedPrompt = `Given this is a ${roomAnalysis.room}, analyze this image in detail: ${imageUrl}`;
+      const detailedAnalysis = await analyzeImage(imageUrl, detailedPrompt);
+      console.log('Detailed analysis:', detailedAnalysis);
+
+      // Third pass: Generate a concise caption based on the detailed description
+      const caption = await generateCaption(roomAnalysis.room, detailedAnalysis.visualDescription);
+      console.log('Generated caption:', caption);
 
       results.push({
         imageUrl,
-        room: analysisResult.room,
-        visualDescription: analysisResult.visualDescription,
+        room: roomAnalysis.room,
+        visualDescription: detailedAnalysis.visualDescription,
         caption
       });
     }
 
     return new Response(
-      JSON.stringify(results), 
+      JSON.stringify(results),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
@@ -52,7 +61,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in image analysis:', error);
     return new Response(
-      JSON.stringify({ error: error.message }), 
+      JSON.stringify({ error: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -61,8 +70,10 @@ serve(async (req) => {
   }
 });
 
-async function analyzeImage(imageUrl) {
+async function analyzeImage(imageUrl: string, customPrompt?: string) {
   try {
+    console.log('Sending request to OpenRouter API for image:', imageUrl);
+    
     const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -76,19 +87,21 @@ async function analyzeImage(imageUrl) {
         messages: [
           {
             role: "system",
-            content: `You are a professional real estate photographer analyzing photos. For each image:
-            1. Identify the room/area (e.g., Kitchen, Living Room, Bedroom)
-            2. Write a neutral, specific visual description in exactly 200 characters that focuses on key features, materials, layout.
-            3. Avoid subjective terms like "amazing" or "best"
-            4. Focus on visible elements only, no assumptions
-            
-            Format your response exactly as:
-            Room/Area: [room type]
-            Visual Description: [200-char description]`
+            content: customPrompt ? 
+              `You are a professional real estate photographer analyzing photos. Provide a detailed visual description in exactly 200 characters.` :
+              `You are a professional real estate photographer analyzing photos. For each image:
+              1. Identify the room/area (e.g., Kitchen, Living Room, Bedroom)
+              2. Write a neutral, specific visual description in exactly 200 characters that focuses on key features, materials, layout.
+              3. Avoid subjective terms like "amazing" or "best"
+              4. Focus on visible elements only, no assumptions
+              
+              Format your response exactly as:
+              Room/Area: [room type]
+              Visual Description: [200-char description]`
           },
           {
             role: "user",
-            content: `Analyze this real estate photo: ${imageUrl}`
+            content: customPrompt || `Analyze this real estate photo: ${imageUrl}`
           }
         ]
       }),
@@ -96,14 +109,15 @@ async function analyzeImage(imageUrl) {
 
     if (!analysisResponse.ok) {
       const errorText = await analysisResponse.text();
+      console.error('OpenRouter API error:', errorText);
       throw new Error(`OpenRouter API responded with status ${analysisResponse.status}: ${errorText}`);
     }
 
     const analysisData = await analysisResponse.json();
-    console.log('Analysis Data:', analysisData);
+    console.log('Analysis response data:', analysisData);
 
     const analysis = analysisData.choices[0].message.content;
-    console.log('Analysis Content:', analysis);
+    console.log('Analysis content:', analysis);
 
     // Parse the analysis to extract room and description
     const room = analysis.match(/Room\/Area: (.*)/i)?.[1]?.trim() || "Unspecified Room";
@@ -116,8 +130,10 @@ async function analyzeImage(imageUrl) {
   }
 }
 
-async function generateCaption(room, description) {
+async function generateCaption(room: string, description: string) {
   try {
+    console.log('Generating caption for room:', room, 'with description:', description);
+    
     const captionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -152,13 +168,17 @@ async function generateCaption(room, description) {
 
     if (!captionResponse.ok) {
       const errorText = await captionResponse.text();
+      console.error('OpenRouter API error:', errorText);
       throw new Error(`OpenRouter API responded with status ${captionResponse.status}: ${errorText}`);
     }
 
     const captionData = await captionResponse.json();
-    console.log('Caption Data:', captionData);
+    console.log('Caption response data:', captionData);
 
-    return captionData.choices[0].message.content;
+    const caption = captionData.choices[0].message.content.replace(/["']/g, '').trim();
+    console.log('Generated caption:', caption);
+
+    return caption;
   } catch (error) {
     console.error('Error in generateCaption:', error);
     throw error;
