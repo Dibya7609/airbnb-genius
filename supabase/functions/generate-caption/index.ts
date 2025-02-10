@@ -29,7 +29,7 @@ serve(async (req) => {
         'X-Title': 'Lovable Real Estate Photo Analyzer',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "qwen/qwen-vl-plus:free",
         messages: [
           {
             role: "system",
@@ -72,7 +72,7 @@ serve(async (req) => {
         'X-Title': 'Lovable Real Estate Caption Generator',
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "qwen/qwen-vl-plus:free",
         messages: [
           {
             role: "system",
