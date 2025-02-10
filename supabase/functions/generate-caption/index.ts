@@ -19,38 +19,64 @@ serve(async (req) => {
   }
 
   try {
-    const { imageUrls } = await req.json();
-    console.log('Received request with imageUrls:', imageUrls);
+    const { imageUrls, useParallel = false } = await req.json();
+    console.log('Received request with imageUrls:', imageUrls, 'useParallel:', useParallel);
 
     if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
       throw new Error("imageUrls must be a non-empty array.");
     }
 
-    const results = [];
+    let results = [];
 
-    for (const imageUrl of imageUrls) {
-      console.log('Processing image:', imageUrl);
+    if (useParallel) {
+      // Parallel processing approach
+      console.log('Using parallel processing approach');
+      
+      // Step 1: Analyze all images in parallel
+      const analysisPromises = imageUrls.map(imageUrl => analyzeImage(imageUrl));
+      const analysisResults = await Promise.all(analysisPromises);
+      console.log('Completed parallel image analysis');
 
-      // First pass: Identify the room and its features
-      const roomAnalysis = await analyzeImage(imageUrl);
-      console.log('Room analysis:', roomAnalysis);
+      // Step 2: Generate captions in parallel
+      const captionPromises = analysisResults.map(result => 
+        generateCaption(result.room, result.visualDescription)
+      );
+      const captions = await Promise.all(captionPromises);
+      console.log('Completed parallel caption generation');
 
-      // Second pass: Generate detailed description based on room type
-      const detailedPrompt = `Given this is a ${roomAnalysis.room}, analyze this image in detail: ${imageUrl}`;
-      const detailedAnalysis = await analyzeImage(imageUrl, detailedPrompt);
-      console.log('Detailed analysis:', detailedAnalysis);
-
-      // Third pass: Generate a concise caption based on the detailed description
-      const caption = await generateCaption(roomAnalysis.room, detailedAnalysis.visualDescription);
-      console.log('Generated caption:', caption);
-
-      results.push({
+      // Combine results
+      results = imageUrls.map((imageUrl, index) => ({
         imageUrl,
-        room: roomAnalysis.room,
-        visualDescription: detailedAnalysis.visualDescription,
-        caption
-      });
+        room: analysisResults[index].room,
+        visualDescription: analysisResults[index].visualDescription,
+        caption: captions[index]
+      }));
+    } else {
+      // Sequential processing approach
+      console.log('Using sequential processing approach');
+      
+      for (const imageUrl of imageUrls) {
+        console.log('Processing image:', imageUrl);
+        
+        // Step 1: Analyze image
+        const analysisResult = await analyzeImage(imageUrl);
+        console.log('Analysis result:', analysisResult);
+
+        // Step 2: Generate caption
+        const caption = await generateCaption(analysisResult.room, analysisResult.visualDescription);
+        console.log('Generated caption:', caption);
+
+        // Step 3: Store results
+        results.push({
+          imageUrl,
+          room: analysisResult.room,
+          visualDescription: analysisResult.visualDescription,
+          caption
+        });
+      }
     }
+
+    console.log('Final results:', results);
 
     return new Response(
       JSON.stringify(results),
@@ -72,7 +98,7 @@ serve(async (req) => {
 
 async function analyzeImage(imageUrl: string, customPrompt?: string) {
   try {
-    console.log('Sending request to OpenRouter API for image:', imageUrl);
+    console.log('Analyzing image:', imageUrl);
     
     const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -114,12 +140,11 @@ async function analyzeImage(imageUrl: string, customPrompt?: string) {
     }
 
     const analysisData = await analysisResponse.json();
-    console.log('Analysis response data:', analysisData);
+    console.log('Analysis response:', analysisData);
 
     const analysis = analysisData.choices[0].message.content;
     console.log('Analysis content:', analysis);
 
-    // Parse the analysis to extract room and description
     const room = analysis.match(/Room\/Area: (.*)/i)?.[1]?.trim() || "Unspecified Room";
     const description = analysis.match(/Visual Description: (.*)/i)?.[1]?.trim() || "";
 
@@ -173,7 +198,7 @@ async function generateCaption(room: string, description: string) {
     }
 
     const captionData = await captionResponse.json();
-    console.log('Caption response data:', captionData);
+    console.log('Caption response:', captionData);
 
     const caption = captionData.choices[0].message.content.replace(/["']/g, '').trim();
     console.log('Generated caption:', caption);
