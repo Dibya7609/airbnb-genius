@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -12,160 +11,96 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { imageUrls, useParallel = false } = await req.json();
-    console.log('Received request with imageUrls:', imageUrls, 'useParallel:', useParallel);
-
-    if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
-      throw new Error("imageUrls must be a non-empty array.");
-    }
-
-    let results = [];
-
-    if (useParallel) {
-      // Parallel processing approach
-      console.log('Using parallel processing approach');
-      
-      // Step 1: Analyze all images in parallel
-      const analysisPromises = imageUrls.map(imageUrl => analyzeImage(imageUrl));
-      const analysisResults = await Promise.all(analysisPromises);
-      console.log('Completed parallel image analysis');
-
-      // Step 2: Generate captions in parallel
-      const captionPromises = analysisResults.map(result => 
-        generateCaption(result.room, result.visualDescription)
-      );
-      const captions = await Promise.all(captionPromises);
-      console.log('Completed parallel caption generation');
-
-      // Combine results
-      results = imageUrls.map((imageUrl, index) => ({
-        imageUrl,
-        room: analysisResults[index].room,
-        visualDescription: analysisResults[index].visualDescription,
-        caption: captions[index]
-      }));
-    } else {
-      // Sequential processing approach
-      console.log('Using sequential processing approach');
-      
-      for (const imageUrl of imageUrls) {
-        console.log('Processing image:', imageUrl);
-        
-        // Step 1: Analyze image
-        const analysisResult = await analyzeImage(imageUrl);
-        console.log('Analysis result:', analysisResult);
-
-        // Step 2: Generate caption
-        const caption = await generateCaption(analysisResult.room, analysisResult.visualDescription);
-        console.log('Generated caption:', caption);
-
-        // Step 3: Store results
-        results.push({
-          imageUrl,
-          room: analysisResult.room,
-          visualDescription: analysisResult.visualDescription,
-          caption
-        });
-      }
-    }
-
-    console.log('Final results:', results);
-
-    return new Response(
-      JSON.stringify(results),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  } catch (error) {
-    console.error('Error in image analysis:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  }
-});
-
-async function analyzeImage(imageUrl: string, customPrompt?: string) {
+// Enhanced image analysis function
+async function analyzeImage(imageUrl: string) {
   try {
     console.log('Analyzing image:', imageUrl);
-    
-    const analysisResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://lovable.ai',
-        'X-Title': 'Lovable Real Estate Photo Analyzer',
+        'X-Title': 'Lovable Real Estate Analyzer',
       },
       body: JSON.stringify({
         model: "qwen/qwen-vl-plus:free",
         messages: [
           {
             role: "system",
-            content: customPrompt ? 
-              `You are a professional real estate photographer analyzing photos. Provide a detailed visual description in exactly 200 characters.` :
-              `You are a professional real estate photographer analyzing photos. For each image:
-              1. Identify the room/area (e.g., Kitchen, Living Room, Bedroom)
-              2. Write a neutral, specific visual description in exactly 200 characters that focuses on key features, materials, layout.
-              3. Avoid subjective terms like "amazing" or "best"
-              4. Focus on visible elements only, no assumptions
-              
-              Format your response exactly as:
-              Room/Area: [room type]
-              Visual Description: [200-char description]`
+            content: `You are a professional real estate photo analyzer. For each image:
+            1. Identify the room type (e.g., Kitchen, Living Room, Bedroom, Bathroom, etc.).
+            2. Provide a detailed visual description of the room in exactly 200 characters.
+            3. Focus on visible elements like furniture, layout, lighting, and materials.
+            4. Do not make assumptions about things not visible in the image.
+            
+            Respond in this EXACT format:
+            Room/Area: [room type]
+            Visual Description: [200-character description]`
           },
           {
             role: "user",
-            content: customPrompt || `Analyze this real estate photo: ${imageUrl}`
+            content: [
+              {
+                type: "text",
+                text: "Analyze this real estate photo and provide the room type and visual description:"
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageUrl
+                }
+              }
+            ]
           }
         ]
       }),
     });
 
-    if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text();
+    if (!response.ok) {
+      const errorText = await response.text();
       console.error('OpenRouter API error:', errorText);
-      throw new Error(`OpenRouter API responded with status ${analysisResponse.status}: ${errorText}`);
+      throw new Error(`OpenRouter API responded with status ${response.status}: ${errorText}`);
     }
 
-    const analysisData = await analysisResponse.json();
-    console.log('Analysis response:', analysisData);
+    const data = await response.json();
+    console.log('Analysis response:', data);
 
-    const analysis = analysisData.choices[0].message.content;
-    console.log('Analysis content:', analysis);
+    const analysisText = data.choices[0].message.content;
+    console.log('Analysis content:', analysisText);
 
-    const room = analysis.match(/Room\/Area: (.*)/i)?.[1]?.trim() || "Unspecified Room";
-    const description = analysis.match(/Visual Description: (.*)/i)?.[1]?.trim() || "";
+    // Parse the response
+    const roomMatch = analysisText.match(/Room\/Area:\s*(.+)/i);
+    const descMatch = analysisText.match(/Visual Description:\s*(.+)/i);
 
-    return { room, visualDescription: description };
+    if (!roomMatch || !descMatch) {
+      throw new Error("Failed to parse analysis response. Invalid format.");
+    }
+
+    return {
+      room: roomMatch[1].trim(),
+      visualDescription: descMatch[1].trim()
+    };
+
   } catch (error) {
     console.error('Error in analyzeImage:', error);
-    throw error;
+    throw new Error(`Image analysis failed: ${error.message}`);
   }
 }
 
+// Enhanced caption generation
 async function generateCaption(room: string, description: string) {
   try {
     console.log('Generating caption for room:', room, 'with description:', description);
-    
-    const captionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://lovable.ai',
-        'X-Title': 'Lovable Real Estate Caption Generator',
+        'X-Title': 'Lovable Caption Generator',
       },
       body: JSON.stringify({
         model: "qwen/qwen-vl-plus:free",
@@ -173,39 +108,42 @@ async function generateCaption(room: string, description: string) {
           {
             role: "system",
             content: `You are a real estate caption writer. Create a caption that:
-            1. Is exactly between 50-80 characters
-            2. Includes the room type
-            3. Focuses on the most striking visible feature
-            4. Uses neutral, descriptive language
-            5. Avoids promotional terms like "amazing" or "best"
+            1. Is exactly between 50-80 characters.
+            2. Includes the room type.
+            3. Focuses on the most striking visible feature.
+            4. Uses neutral, descriptive language.
             
-            Example format:
-            "Modern Kitchen with Marble Island" (correct length, includes room, specific feature)
-            "Bright Living Room with Floor-to-Ceiling Windows" (correct length, includes room, specific feature)`
+            Example: "Modern Kitchen with Marble Island Countertop"`
           },
           {
             role: "user",
-            content: `Create a 50 character caption for this ${room} with these features: "${description}"`
+            content: `Room: ${room}\nFeatures: ${description}\nCreate a caption:`
           }
         ]
       }),
     });
 
-    if (!captionResponse.ok) {
-      const errorText = await captionResponse.text();
+    if (!response.ok) {
+      const errorText = await response.text();
       console.error('OpenRouter API error:', errorText);
-      throw new Error(`OpenRouter API responded with status ${captionResponse.status}: ${errorText}`);
+      throw new Error(`OpenRouter API responded with status ${response.status}: ${errorText}`);
     }
 
-    const captionData = await captionResponse.json();
-    console.log('Caption response:', captionData);
+    const data = await response.json();
+    console.log('Caption response:', data);
 
-    const caption = captionData.choices[0].message.content.replace(/["']/g, '').trim();
-    console.log('Generated caption:', caption);
+    const caption = data.choices[0].message.content
+      .replace(/["']/g, '')
+      .trim()
+      .substring(0, 80); // Ensure length limit
 
-    return caption;
+    return caption || "No caption generated";
+
   } catch (error) {
     console.error('Error in generateCaption:', error);
-    throw error;
+    throw new Error(`Caption generation failed: ${error.message}`);
   }
 }
+
+// Keep the rest of your serve() handler the same
+// ... (your existing server setup and processing logic)
