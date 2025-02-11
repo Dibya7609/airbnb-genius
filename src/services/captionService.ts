@@ -20,31 +20,18 @@ interface ApiResponse {
 
 export const generateCaption = async (imageUrl: string): Promise<CaptionResult | null> => {
   try {
-    console.log('Generating caption for image:', imageUrl);
-
     const { data, error } = await supabase.functions.invoke<ApiResponse>('generate-caption', {
       body: { imageUrls: [imageUrl] },
     });
 
     if (error) {
-      console.error('Supabase function error:', error);
-      throw error;
+      console.error('Function error:', error);
+      return null;
     }
 
-    if (!data?.results?.[0]) {
-      console.error('Invalid response format:', data);
-      throw new Error('Invalid response format from caption service');
-    }
-
-    const result = data.results[0];
-    if (!result.success) {
-      console.error('Caption generation failed:', result.error);
-      throw new Error(result.error || 'Caption generation failed');
-    }
-
-    return result;
+    return data?.results?.[0] || null;
   } catch (error) {
-    console.error('Error in generateCaption:', error);
+    console.error('Error generating caption:', error);
     return null;
   }
 };
@@ -53,8 +40,6 @@ export const generateCaptionsForImages = async (
   images: File[]
 ): Promise<CaptionResult[]> => {
   try {
-    console.log('Generating captions for images:', images.length);
-    
     const imageUrls = images.map(image => URL.createObjectURL(image));
     
     const { data, error } = await supabase.functions.invoke<ApiResponse>('generate-caption', {
@@ -62,23 +47,19 @@ export const generateCaptionsForImages = async (
     });
 
     if (error) {
-      console.error('Supabase function error:', error);
-      throw error;
+      console.error('Function error:', error);
+      return [];
     }
 
-    if (!data?.results) {
-      console.error('Invalid response format:', data);
-      throw new Error('Invalid response format from caption service');
-    }
-
-    console.log('Caption generation results:', data.metadata);
-    
-    return data.results.map((result, index) => ({
+    return data?.results?.map((result, index) => ({
       ...result,
       imageUrl: imageUrls[index]
-    }));
+    })) || [];
   } catch (error) {
-    console.error('Error in generateCaptionsForImages:', error);
+    console.error('Error generating captions:', error);
     return [];
+  } finally {
+    // Clean up object URLs to prevent memory leaks
+    imageUrls.forEach(URL.revokeObjectURL);
   }
 }
