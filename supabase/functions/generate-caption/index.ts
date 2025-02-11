@@ -19,7 +19,7 @@ serve(async (req) => {
 
   try {
     const { imageUrls } = await req.json();
-    console.log('Received imageUrls:', imageUrls);
+    console.log('Processing image URLs:', imageUrls);
 
     if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
       throw new Error("imageUrls must be a non-empty array");
@@ -28,21 +28,28 @@ serve(async (req) => {
     const results = [];
     for (const imageUrl of imageUrls) {
       try {
-        // First analysis: Room identification
+        console.log(`Analyzing image: ${imageUrl}`);
+
+        // Room identification with more specific prompt
         const roomAnalysis = await analyzeImage(imageUrl, {
           task: "room_identification",
-          prompt: "Identify the room or area type in this real estate photo."
+          prompt: "You are a professional real estate photographer. Looking at this image, identify the specific room or area type. Be precise and specific in your identification. Format: Room/Area: [specific type]"
         });
 
-        // Second analysis: Detailed features
+        console.log('Room analysis result:', roomAnalysis);
+
+        // Detailed visual analysis with more context
         const detailedAnalysis = await analyzeImage(imageUrl, {
           task: "detailed_analysis",
-          prompt: `This is a ${roomAnalysis.room}. Describe its key features.`,
+          prompt: `This is a ${roomAnalysis.room}. Describe its key visual features, focusing on lighting, space, design elements, and standout characteristics. Be specific and detailed.`,
           context: roomAnalysis.room
         });
 
-        // Generate caption
+        console.log('Detailed analysis result:', detailedAnalysis);
+
+        // Generate engaging caption
         const caption = await generateCaption(roomAnalysis.room, detailedAnalysis.visualDescription);
+        console.log('Generated caption:', caption);
 
         results.push({
           imageUrl,
@@ -55,20 +62,27 @@ serve(async (req) => {
         console.error(`Error processing image ${imageUrl}:`, error);
         results.push({
           imageUrl,
-          error: error.message,
-          success: false
+          error: `Failed to analyze image: ${error.message}`,
+          success: false,
+          room: 'Unknown',
+          visualDescription: '',
+          caption: ''
         });
       }
     }
 
+    const response = {
+      results,
+      metadata: {
+        total: results.length,
+        successful: results.filter(r => r.success).length
+      }
+    };
+
+    console.log('Final response:', response);
+
     return new Response(
-      JSON.stringify({
-        results,
-        metadata: {
-          total: results.length,
-          successful: results.filter(r => r.success).length
-        }
-      }),
+      JSON.stringify(response),
       {
         headers: { 
           ...corsHeaders,
@@ -77,9 +91,12 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Fatal error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -94,7 +111,9 @@ interface AnalysisOptions {
   context?: string;
 }
 
-async function analyzeImage(imageUrl: string, options: AnalysisOptions) {
+async function analyzeImage(imageUrl: string, options: AnalysisOptions): Promise<{ room: string; visualDescription: string }> {
+  console.log(`Starting ${options.task} for image:`, imageUrl);
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -109,8 +128,8 @@ async function analyzeImage(imageUrl: string, options: AnalysisOptions) {
         {
           role: "system",
           content: options.task === 'room_identification' 
-            ? 'You are a real estate photographer. Identify the room type. Format: Room/Area: [type]'
-            : `You are describing a ${options.context}. Write a 200-character description. Format: Visual Description: [description]`
+            ? 'You are a professional real estate photographer. Identify the specific room or area type with precision.'
+            : `You are describing a ${options.context}. Focus on distinctive features and architectural elements.`
         },
         {
           role: "user",
@@ -121,26 +140,36 @@ async function analyzeImage(imageUrl: string, options: AnalysisOptions) {
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+    throw new Error(`API error: ${response.status} - ${await response.text()}`);
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
+  console.log(`${options.task} API response:`, data);
 
-  if (!content) {
-    throw new Error('Invalid API response');
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error('Invalid API response structure');
   }
+
+  const content = data.choices[0].message.content;
 
   if (options.task === 'room_identification') {
     const room = content.match(/Room\/Area:\s*(.+)/i)?.[1]?.trim();
-    return { room: room || 'Unspecified', visualDescription: '' };
+    if (!room) {
+      throw new Error('Failed to extract room identification from response');
+    }
+    return { room, visualDescription: '' };
   } else {
     const description = content.match(/Visual Description:\s*(.+)/i)?.[1]?.trim();
-    return { room: options.context || 'Unspecified', visualDescription: description || '' };
+    if (!description) {
+      throw new Error('Failed to extract visual description from response');
+    }
+    return { room: options.context || 'Unspecified', visualDescription: description };
   }
 }
 
 async function generateCaption(room: string, description: string): Promise<string> {
+  console.log('Generating caption for:', { room, description });
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -154,20 +183,26 @@ async function generateCaption(room: string, description: string): Promise<strin
       messages: [
         {
           role: "system",
-          content: "Create a 50-80 character real estate caption including room type and one key feature."
+          content: "Create an engaging, descriptive real estate caption that highlights the room type and key features."
         },
         {
           role: "user",
-          content: `Room: ${room}\nFeatures: ${description}`
+          content: `Create a compelling 50-80 character caption for this ${room}.\nKey features: ${description}`
         }
       ],
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Caption API error: ${response.status}`);
+    throw new Error(`Caption API error: ${response.status} - ${await response.text()}`);
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content?.replace(/["']/g, '').trim() || 'Caption unavailable';
+  console.log('Caption API response:', data);
+
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error('Invalid caption API response structure');
+  }
+
+  return data.choices[0].message.content.replace(/["']/g, '').trim();
 }
