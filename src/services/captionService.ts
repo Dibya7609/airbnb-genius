@@ -39,11 +39,13 @@ export const generateCaption = async (imageUrl: string): Promise<CaptionResult |
 export const generateCaptionsForImages = async (
   images: File[]
 ): Promise<CaptionResult[]> => {
+  let createdImageUrls: string[] = [];
+  
   try {
-    const imageUrls = images.map(image => URL.createObjectURL(image));
+    createdImageUrls = images.map(image => URL.createObjectURL(image));
     
     const { data, error } = await supabase.functions.invoke<ApiResponse>('generate-caption', {
-      body: { imageUrls },
+      body: { imageUrls: createdImageUrls },
     });
 
     if (error) {
@@ -53,13 +55,13 @@ export const generateCaptionsForImages = async (
 
     return data?.results?.map((result, index) => ({
       ...result,
-      imageUrl: imageUrls[index]
+      imageUrl: createdImageUrls[index]
     })) || [];
   } catch (error) {
     console.error('Error generating captions:', error);
     return [];
   } finally {
     // Clean up object URLs to prevent memory leaks
-    imageUrls.forEach(URL.revokeObjectURL);
+    createdImageUrls.forEach(URL.revokeObjectURL);
   }
 }
