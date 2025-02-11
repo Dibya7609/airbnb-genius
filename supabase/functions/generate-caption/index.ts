@@ -185,7 +185,7 @@ async function generateCaption(room: string, description: string) {
           },
           {
             role: "user",
-            content: `Create a 50-80 character caption for this ${room} with these features: "${description}"`
+            content: `Create a 50 character caption for this ${room} with these features: "${description}"`
           }
         ]
       }),
