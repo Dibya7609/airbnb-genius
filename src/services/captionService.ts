@@ -1,62 +1,84 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-export const generateCaption = async (imageUrl: string) => {
+interface CaptionResult {
+  imageUrl: string;
+  room: string;
+  visualDescription: string;
+  caption: string;
+  success: boolean;
+  error?: string;
+}
+
+interface ApiResponse {
+  results: CaptionResult[];
+  metadata: {
+    total: number;
+    successful: number;
+  };
+}
+
+export const generateCaption = async (imageUrl: string): Promise<CaptionResult | null> => {
   try {
-    const { data, error } = await supabase.functions.invoke('generate-caption', {
+    console.log('Generating caption for image:', imageUrl);
+
+    const { data, error } = await supabase.functions.invoke<ApiResponse>('generate-caption', {
       body: { imageUrls: [imageUrl] },
     });
 
     if (error) {
-      console.error('Error generating caption:', error);
-      return null;
+      console.error('Supabase function error:', error);
+      throw error;
     }
 
-    if (!data || !Array.isArray(data) || data.length === 0) {
+    if (!data?.results?.[0]) {
       console.error('Invalid response format:', data);
-      return null;
+      throw new Error('Invalid response format from caption service');
     }
 
-    const result = data[0];
-    return {
-      room: result.room,
-      visualDescription: result.visualDescription,
-      caption: result.caption
-    };
+    const result = data.results[0];
+    if (!result.success) {
+      console.error('Caption generation failed:', result.error);
+      throw new Error(result.error || 'Caption generation failed');
+    }
+
+    return result;
   } catch (error) {
-    console.error(`Error generating caption for ${imageUrl}:`, error);
+    console.error('Error in generateCaption:', error);
     return null;
   }
 };
 
 export const generateCaptionsForImages = async (
   images: File[]
-): Promise<Array<{ imageUrl: string; room: string; visualDescription: string; caption: string }>> => {
-  const imageUrls = images.map(image => URL.createObjectURL(image));
-  
+): Promise<CaptionResult[]> => {
   try {
-    const { data, error } = await supabase.functions.invoke('generate-caption', {
+    console.log('Generating captions for images:', images.length);
+    
+    const imageUrls = images.map(image => URL.createObjectURL(image));
+    
+    const { data, error } = await supabase.functions.invoke<ApiResponse>('generate-caption', {
       body: { imageUrls },
     });
 
     if (error) {
-      console.error('Error generating captions:', error);
-      return [];
+      console.error('Supabase function error:', error);
+      throw error;
     }
 
-    if (!data || !Array.isArray(data)) {
+    if (!data?.results) {
       console.error('Invalid response format:', data);
-      return [];
+      throw new Error('Invalid response format from caption service');
     }
 
-    return data.map((result, index) => ({
-      imageUrl: imageUrls[index],
-      room: result.room,
-      visualDescription: result.visualDescription,
-      caption: result.caption
+    console.log('Caption generation results:', data.metadata);
+    
+    return data.results.map((result, index) => ({
+      ...result,
+      imageUrl: imageUrls[index]
     }));
   } catch (error) {
-    console.error('Error generating captions:', error);
+    console.error('Error in generateCaptionsForImages:', error);
     return [];
   }
 }
