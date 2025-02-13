@@ -1,1 +1,4 @@
 project_id = "ykekgdkwcyasinsgcyoa"
+[global]
+site_url = "https://c26b0562-fa12-47f2-bb95-9a3be1e807bd.lovableproject.com"
+additional_redirect_urls = ["http://localhost:3000"]
