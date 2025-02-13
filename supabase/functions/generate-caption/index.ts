@@ -29,15 +29,18 @@ serve(async (req) => {
       try {
         console.log('Step 1: Starting analysis for image:', imageUrl);
 
+        // Common headers for all OpenRouter requests
+        const openRouterHeaders = {
+          'Authorization': `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://lovable.ai',
+          'X-Title': 'Lovable Real Estate Photo Analyzer',
+        };
+
         // Step 1: Room Identification with improved prompt
-        const roomResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const roomResponse = await fetch('https://api.openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://lovable.ai',
-            'X-Title': 'Lovable Real Estate Photo Analyzer',
-          },
+          headers: openRouterHeaders,
           body: JSON.stringify({
             model: "qwen/qwen-vl-plus:free",
             messages: [
@@ -54,7 +57,9 @@ serve(async (req) => {
         });
 
         if (!roomResponse.ok) {
-          throw new Error(`Room identification failed: ${await roomResponse.text()}`);
+          const errorText = await roomResponse.text();
+          console.error('Room identification API error:', errorText);
+          throw new Error(`Room identification failed: ${errorText}`);
         }
 
         const roomData = await roomResponse.json();
@@ -67,14 +72,9 @@ serve(async (req) => {
         console.log('Step 2: Room identified as:', roomType);
 
         // Step 2: Visual Description with improved context
-        const descriptionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const descriptionResponse = await fetch('https://api.openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://lovable.ai',
-            'X-Title': 'Lovable Real Estate Photo Analyzer',
-          },
+          headers: openRouterHeaders,
           body: JSON.stringify({
             model: "qwen/qwen-vl-plus:free",
             messages: [
@@ -91,7 +91,9 @@ serve(async (req) => {
         });
 
         if (!descriptionResponse.ok) {
-          throw new Error(`Visual description failed: ${await descriptionResponse.text()}`);
+          const errorText = await descriptionResponse.text();
+          console.error('Visual description API error:', errorText);
+          throw new Error(`Visual description failed: ${errorText}`);
         }
 
         const descriptionData = await descriptionResponse.json();
@@ -101,14 +103,9 @@ serve(async (req) => {
         console.log('Step 3: Generated visual description');
 
         // Step 3: Generate Caption
-        const captionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const captionResponse = await fetch('https://api.openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://lovable.ai',
-            'X-Title': 'Lovable Real Estate Caption Generator',
-          },
+          headers: openRouterHeaders,
           body: JSON.stringify({
             model: "qwen/qwen-vl-plus:free",
             messages: [
@@ -125,7 +122,9 @@ serve(async (req) => {
         });
 
         if (!captionResponse.ok) {
-          throw new Error(`Caption generation failed: ${await captionResponse.text()}`);
+          const errorText = await captionResponse.text();
+          console.error('Caption generation API error:', errorText);
+          throw new Error(`Caption generation failed: ${errorText}`);
         }
 
         const captionData = await captionResponse.json();
