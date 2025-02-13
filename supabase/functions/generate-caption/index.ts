@@ -33,7 +33,7 @@ serve(async (req) => {
         // Room identification with more specific prompt
         const roomAnalysis = await analyzeImage(imageUrl, {
           task: "room_identification",
-          prompt: "You are a professional real estate photographer. Looking at this image, identify the specific room or area type. Be precise and specific in your identification. Format: Room/Area: [specific type]"
+          prompt: "You are a professional real estate photographer. Looking at this image, identify the specific room or area type. Be precise and specific in your identification. Respond with: Room/Area: [specific type]"
         });
 
         console.log('Room analysis result:', roomAnalysis);
@@ -41,7 +41,7 @@ serve(async (req) => {
         // Detailed visual analysis with more context
         const detailedAnalysis = await analyzeImage(imageUrl, {
           task: "detailed_analysis",
-          prompt: `This is a ${roomAnalysis.room}. Describe its key visual features, focusing on lighting, space, design elements, and standout characteristics. Be specific and detailed.`,
+          prompt: `Analyze this ${roomAnalysis.room} and provide a visual description. Focus on key features, lighting, space, and design elements. Start your response with 'Visual Description:'`,
           context: roomAnalysis.room
         });
 
@@ -151,19 +151,31 @@ async function analyzeImage(imageUrl: string, options: AnalysisOptions): Promise
   }
 
   const content = data.choices[0].message.content;
+  console.log(`Raw content for ${options.task}:`, content);
 
   if (options.task === 'room_identification') {
-    const room = content.match(/Room\/Area:\s*(.+)/i)?.[1]?.trim();
-    if (!room) {
+    // More flexible room extraction
+    const roomMatch = content.match(/(?:room|area):\s*([^.\n]+)/i)?.[1]?.trim() ||
+                     content.match(/this is (?:a|an)\s+([^.\n]+)/i)?.[1]?.trim() ||
+                     content.split('\n')[0]?.trim();
+    
+    if (!roomMatch) {
+      console.error('Failed to extract room from content:', content);
       throw new Error('Failed to extract room identification from response');
     }
-    return { room, visualDescription: '' };
+    return { room: roomMatch, visualDescription: '' };
   } else {
-    const description = content.match(/Visual Description:\s*(.+)/i)?.[1]?.trim();
-    if (!description) {
+    // More flexible visual description extraction
+    const descriptionMatch = content.match(/visual description:\s*(.+)/is)?.[1]?.trim() ||
+                           content.match(/description:\s*(.+)/is)?.[1]?.trim() ||
+                           content.split('\n').slice(1).join(' ').trim() ||
+                           content.trim();
+    
+    if (!descriptionMatch) {
+      console.error('Failed to extract description from content:', content);
       throw new Error('Failed to extract visual description from response');
     }
-    return { room: options.context || 'Unspecified', visualDescription: description };
+    return { room: options.context || 'Unspecified', visualDescription: descriptionMatch };
   }
 }
 
