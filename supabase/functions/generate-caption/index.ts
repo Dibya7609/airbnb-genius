@@ -29,7 +29,7 @@ serve(async (req) => {
       try {
         console.log('Step 1: Starting analysis for image:', imageUrl);
 
-        // Step 1: Room Identification
+        // Step 1: Room Identification with improved prompt
         const roomResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -43,11 +43,11 @@ serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: "You are a professional real estate photographer identifying room types. Respond ONLY with the room type in format: 'Room: [type]'"
+                content: "You are a professional real estate photographer. Your task is to accurately identify the type of room or area shown in the image. Look for key indicators like furniture (beds, kitchen appliances, sofas), fixtures, and room layout. Be very precise in your identification. Format your response as 'Room: [type]'. Common room types include: Bedroom, Living Room, Kitchen, Bathroom, Dining Room, Office, etc."
               },
               {
                 role: "user",
-                content: `What type of room is shown in this image?\nImage: ${imageUrl}`
+                content: `Look at this room carefully and identify what type of room it is based on the furniture and features visible. What is the specific room type?\nImage: ${imageUrl}`
               }
             ],
           }),
@@ -66,7 +66,7 @@ serve(async (req) => {
 
         console.log('Step 2: Room identified as:', roomType);
 
-        // Step 2: Visual Description
+        // Step 2: Visual Description with improved context
         const descriptionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -80,11 +80,11 @@ serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: `You are describing a ${roomType}. Provide a detailed description of the space and its features.`
+                content: "You are a professional real estate photographer creating detailed room descriptions. Focus on the actual features visible in the image, including furniture, lighting, colors, and architectural elements."
               },
               {
                 role: "user",
-                content: `Describe this ${roomType}'s key features, focusing on design, lighting, and notable elements.\nImage: ${imageUrl}`
+                content: `Describe the key features and elements visible in this ${roomType}. Focus on the actual elements you can see in the image, including furniture, lighting, colors, and any distinctive features.\nImage: ${imageUrl}`
               }
             ],
           }),
@@ -114,11 +114,11 @@ serve(async (req) => {
             messages: [
               {
                 role: "system",
-                content: "Create a brief, engaging real estate caption (50-80 characters) highlighting key features."
+                content: "Create a brief, engaging real estate caption that accurately describes the room's key features."
               },
               {
                 role: "user",
-                content: `Create a compelling caption for this ${roomType}.\nFeatures: ${visualDescription}`
+                content: `Create a compelling, accurate caption (50-80 characters) for this ${roomType} highlighting its main features.\nFeatures: ${visualDescription}`
               }
             ],
           }),
