@@ -1,9 +1,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
-if (!openRouterApiKey) {
-  throw new Error("OPENROUTER_API_KEY environment variable is not set.");
+const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+if (!openAIApiKey) {
+  throw new Error("OPENAI_API_KEY environment variable is not set.");
 }
 
 const corsHeaders = {
@@ -29,20 +29,20 @@ serve(async (req) => {
       try {
         console.log('Step 1: Starting analysis for image:', imageUrl);
 
-        // Common headers for all OpenRouter requests
-        const openRouterHeaders = {
-          'Authorization': `Bearer ${openRouterApiKey}`,
+        // Common headers for all OpenAI requests
+        const openAIHeaders = {
+          'Authorization': `Bearer ${openAIApiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://lovable.ai',
-          'X-Title': 'Lovable Real Estate Photo Analyzer',
         };
 
         // Step 1: Room Identification with improved prompt
-        const roomResponse = await fetch('https://api.openrouter.ai/api/v1/chat/completions', {
+        console.log('Making request to OpenAI API...');
+        const roomResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: openRouterHeaders,
+          headers: openAIHeaders,
           body: JSON.stringify({
-            model: "qwen/qwen-vl-plus:free",
+            model: "gpt-4-vision-preview",
+            max_tokens: 1000,
             messages: [
               {
                 role: "system",
@@ -50,9 +50,12 @@ serve(async (req) => {
               },
               {
                 role: "user",
-                content: `Look at this room carefully and identify what type of room it is based on the furniture and features visible. What is the specific room type?\nImage: ${imageUrl}`
+                content: [
+                  { type: "text", text: "Look at this room carefully and identify what type of room it is based on the furniture and features visible. What is the specific room type?" },
+                  { type: "image_url", url: imageUrl }
+                ]
               }
-            ],
+            ]
           }),
         });
 
@@ -72,11 +75,12 @@ serve(async (req) => {
         console.log('Step 2: Room identified as:', roomType);
 
         // Step 2: Visual Description with improved context
-        const descriptionResponse = await fetch('https://api.openrouter.ai/api/v1/chat/completions', {
+        const descriptionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: openRouterHeaders,
+          headers: openAIHeaders,
           body: JSON.stringify({
-            model: "qwen/qwen-vl-plus:free",
+            model: "gpt-4-vision-preview",
+            max_tokens: 1000,
             messages: [
               {
                 role: "system",
@@ -84,9 +88,12 @@ serve(async (req) => {
               },
               {
                 role: "user",
-                content: `Describe the key features and elements visible in this ${roomType}. Focus on the actual elements you can see in the image, including furniture, lighting, colors, and any distinctive features.\nImage: ${imageUrl}`
+                content: [
+                  { type: "text", text: `Describe the key features and elements visible in this ${roomType}. Focus on the actual elements you can see in the image, including furniture, lighting, colors, and any distinctive features.` },
+                  { type: "image_url", url: imageUrl }
+                ]
               }
-            ],
+            ]
           }),
         });
 
@@ -103,11 +110,12 @@ serve(async (req) => {
         console.log('Step 3: Generated visual description');
 
         // Step 3: Generate Caption
-        const captionResponse = await fetch('https://api.openrouter.ai/api/v1/chat/completions', {
+        const captionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: openRouterHeaders,
+          headers: openAIHeaders,
           body: JSON.stringify({
-            model: "qwen/qwen-vl-plus:free",
+            model: "gpt-4-vision-preview",
+            max_tokens: 1000,
             messages: [
               {
                 role: "system",
@@ -115,9 +123,12 @@ serve(async (req) => {
               },
               {
                 role: "user",
-                content: `Create a compelling, accurate caption (50-80 characters) for this ${roomType} highlighting its main features.\nFeatures: ${visualDescription}`
+                content: [
+                  { type: "text", text: `Create a compelling, accurate caption (50-80 characters) for this ${roomType} highlighting its main features.` },
+                  { type: "image_url", url: imageUrl }
+                ]
               }
-            ],
+            ]
           }),
         });
 
