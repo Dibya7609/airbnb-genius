@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
 const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
 if (!openRouterApiKey) {
@@ -28,36 +27,128 @@ serve(async (req) => {
     const results = [];
     for (const imageUrl of imageUrls) {
       try {
-        console.log(`Analyzing image: ${imageUrl}`);
+        console.log('Step 1: Starting analysis for image:', imageUrl);
 
-        // Room identification with more specific prompt
-        const roomAnalysis = await analyzeImage(imageUrl, {
-          task: "room_identification",
-          prompt: "You are a professional real estate photographer. Looking at this image, identify the specific room or area type. Be precise and specific in your identification. Respond with: Room/Area: [specific type]"
+        // Step 1: Room Identification
+        const roomResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterApiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://lovable.ai',
+            'X-Title': 'Lovable Real Estate Photo Analyzer',
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen-vl-plus:free",
+            messages: [
+              {
+                role: "system",
+                content: "You are a professional real estate photographer identifying room types. Respond ONLY with the room type in format: 'Room: [type]'"
+              },
+              {
+                role: "user",
+                content: `What type of room is shown in this image?\nImage: ${imageUrl}`
+              }
+            ],
+          }),
         });
 
-        console.log('Room analysis result:', roomAnalysis);
+        if (!roomResponse.ok) {
+          throw new Error(`Room identification failed: ${await roomResponse.text()}`);
+        }
 
-        // Detailed visual analysis with more context
-        const detailedAnalysis = await analyzeImage(imageUrl, {
-          task: "detailed_analysis",
-          prompt: `Analyze this ${roomAnalysis.room} and provide a visual description. Focus on key features, lighting, space, and design elements. Start your response with 'Visual Description:'`,
-          context: roomAnalysis.room
+        const roomData = await roomResponse.json();
+        console.log('Room identification response:', roomData);
+        
+        const roomType = roomData.choices[0].message.content
+          .match(/Room:\s*([^.\n]+)/i)?.[1]?.trim() || 
+          roomData.choices[0].message.content.trim();
+
+        console.log('Step 2: Room identified as:', roomType);
+
+        // Step 2: Visual Description
+        const descriptionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterApiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://lovable.ai',
+            'X-Title': 'Lovable Real Estate Photo Analyzer',
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen-vl-plus:free",
+            messages: [
+              {
+                role: "system",
+                content: `You are describing a ${roomType}. Provide a detailed description of the space and its features.`
+              },
+              {
+                role: "user",
+                content: `Describe this ${roomType}'s key features, focusing on design, lighting, and notable elements.\nImage: ${imageUrl}`
+              }
+            ],
+          }),
         });
 
-        console.log('Detailed analysis result:', detailedAnalysis);
+        if (!descriptionResponse.ok) {
+          throw new Error(`Visual description failed: ${await descriptionResponse.text()}`);
+        }
 
-        // Generate engaging caption
-        const caption = await generateCaption(roomAnalysis.room, detailedAnalysis.visualDescription);
-        console.log('Generated caption:', caption);
+        const descriptionData = await descriptionResponse.json();
+        console.log('Visual description response:', descriptionData);
+        
+        const visualDescription = descriptionData.choices[0].message.content.trim();
+        console.log('Step 3: Generated visual description');
+
+        // Step 3: Generate Caption
+        const captionResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openRouterApiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://lovable.ai',
+            'X-Title': 'Lovable Real Estate Caption Generator',
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen-vl-plus:free",
+            messages: [
+              {
+                role: "system",
+                content: "Create a brief, engaging real estate caption (50-80 characters) highlighting key features."
+              },
+              {
+                role: "user",
+                content: `Create a compelling caption for this ${roomType}.\nFeatures: ${visualDescription}`
+              }
+            ],
+          }),
+        });
+
+        if (!captionResponse.ok) {
+          throw new Error(`Caption generation failed: ${await captionResponse.text()}`);
+        }
+
+        const captionData = await captionResponse.json();
+        console.log('Caption generation response:', captionData);
+        
+        const caption = captionData.choices[0].message.content.trim();
+        console.log('Step 4: Generated final caption');
 
         results.push({
           imageUrl,
-          room: roomAnalysis.room,
-          visualDescription: detailedAnalysis.visualDescription,
+          room: roomType,
+          visualDescription,
           caption,
           success: true
         });
+
+        console.log('Successfully processed image:', {
+          imageUrl,
+          room: roomType,
+          visualDescription: visualDescription.substring(0, 100) + '...',
+          caption
+        });
+
       } catch (error) {
         console.error(`Error processing image ${imageUrl}:`, error);
         results.push({
@@ -104,117 +195,3 @@ serve(async (req) => {
     );
   }
 });
-
-interface AnalysisOptions {
-  task: 'room_identification' | 'detailed_analysis';
-  prompt: string;
-  context?: string;
-}
-
-async function analyzeImage(imageUrl: string, options: AnalysisOptions): Promise<{ room: string; visualDescription: string }> {
-  console.log(`Starting ${options.task} for image:`, imageUrl);
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openRouterApiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://lovable.ai',
-      'X-Title': 'Lovable Real Estate Photo Analyzer',
-    },
-    body: JSON.stringify({
-      model: "qwen/qwen-vl-plus:free",
-      messages: [
-        {
-          role: "system",
-          content: options.task === 'room_identification' 
-            ? 'You are a professional real estate photographer. Identify the specific room or area type with precision.'
-            : `You are describing a ${options.context}. Focus on distinctive features and architectural elements.`
-        },
-        {
-          role: "user",
-          content: `${options.prompt}\nImage: ${imageUrl}`
-        }
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status} - ${await response.text()}`);
-  }
-
-  const data = await response.json();
-  console.log(`${options.task} API response:`, data);
-
-  if (!data.choices?.[0]?.message?.content) {
-    throw new Error('Invalid API response structure');
-  }
-
-  const content = data.choices[0].message.content;
-  console.log(`Raw content for ${options.task}:`, content);
-
-  if (options.task === 'room_identification') {
-    // More flexible room extraction
-    const roomMatch = content.match(/(?:room|area):\s*([^.\n]+)/i)?.[1]?.trim() ||
-                     content.match(/this is (?:a|an)\s+([^.\n]+)/i)?.[1]?.trim() ||
-                     content.split('\n')[0]?.trim();
-    
-    if (!roomMatch) {
-      console.error('Failed to extract room from content:', content);
-      throw new Error('Failed to extract room identification from response');
-    }
-    return { room: roomMatch, visualDescription: '' };
-  } else {
-    // More flexible visual description extraction
-    const descriptionMatch = content.match(/visual description:\s*(.+)/is)?.[1]?.trim() ||
-                           content.match(/description:\s*(.+)/is)?.[1]?.trim() ||
-                           content.split('\n').slice(1).join(' ').trim() ||
-                           content.trim();
-    
-    if (!descriptionMatch) {
-      console.error('Failed to extract description from content:', content);
-      throw new Error('Failed to extract visual description from response');
-    }
-    return { room: options.context || 'Unspecified', visualDescription: descriptionMatch };
-  }
-}
-
-async function generateCaption(room: string, description: string): Promise<string> {
-  console.log('Generating caption for:', { room, description });
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openRouterApiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://lovable.ai',
-      'X-Title': 'Lovable Real Estate Caption Generator',
-    },
-    body: JSON.stringify({
-      model: "qwen/qwen-vl-plus:free",
-      messages: [
-        {
-          role: "system",
-          content: "Create an engaging, descriptive real estate caption that highlights the room type and key features."
-        },
-        {
-          role: "user",
-          content: `Create a compelling 50-80 character caption for this ${room}.\nKey features: ${description}`
-        }
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Caption API error: ${response.status} - ${await response.text()}`);
-  }
-
-  const data = await response.json();
-  console.log('Caption API response:', data);
-
-  if (!data.choices?.[0]?.message?.content) {
-    throw new Error('Invalid caption API response structure');
-  }
-
-  return data.choices[0].message.content.replace(/["']/g, '').trim();
-}
