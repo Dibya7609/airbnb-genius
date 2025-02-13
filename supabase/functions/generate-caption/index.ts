@@ -1,5 +1,4 @@
-
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.200.0/http/server.ts";
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 if (!openAIApiKey) {
@@ -29,120 +28,109 @@ serve(async (req) => {
       try {
         console.log('Step 1: Starting analysis for image:', imageUrl);
 
-        // Common headers for all OpenAI requests
         const openAIHeaders = {
           'Authorization': `Bearer ${openAIApiKey}`,
           'Content-Type': 'application/json',
         };
 
-        // Step 1: Room Identification with improved prompt
-        console.log('Making request to OpenAI API...');
+        // Step 1: Room Identification
         const roomResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4-vision-preview",
+            model: "gpt-4-1106-preview",
             max_tokens: 1000,
             messages: [
               {
                 role: "system",
-                content: "You are a professional real estate photographer. Your task is to accurately identify the type of room or area shown in the image. Look for key indicators like furniture (beds, kitchen appliances, sofas), fixtures, and room layout. Be very precise in your identification. Format your response as 'Room: [type]'. Common room types include: Bedroom, Living Room, Kitchen, Bathroom, Dining Room, Office, etc."
+                content: "You are a professional real estate photographer identifying room types."
               },
               {
                 role: "user",
                 content: [
-                  { type: "text", text: "Look at this room carefully and identify what type of room it is based on the furniture and features visible. What is the specific room type?" },
+                  { type: "text", text: "Identify the room type in this image." },
                   { type: "image_url", url: imageUrl }
                 ]
               }
             ]
-          }),
+          })
         });
 
         if (!roomResponse.ok) {
           const errorText = await roomResponse.text();
-          console.error('Room identification API error:', errorText);
           throw new Error(`Room identification failed: ${errorText}`);
         }
 
         const roomData = await roomResponse.json();
-        console.log('Room identification response:', roomData);
-        
-        const roomType = roomData.choices[0].message.content
-          .match(/Room:\s*([^.\n]+)/i)?.[1]?.trim() || 
-          roomData.choices[0].message.content.trim();
+        let roomType = roomData.choices[0].message.content.trim();
+        const roomMatch = roomData.choices[0].message.content.match(/Room:\s*([^.\n]+)/i);
+        if (roomMatch) {
+          roomType = roomMatch[1].trim();
+        }
 
-        console.log('Step 2: Room identified as:', roomType);
+        console.log('Room identified as:', roomType);
 
-        // Step 2: Visual Description with improved context
+        // Step 2: Visual Description
         const descriptionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4-vision-preview",
+            model: "gpt-4-1106-preview",
             max_tokens: 1000,
             messages: [
               {
                 role: "system",
-                content: "You are a professional real estate photographer creating detailed room descriptions. Focus on the actual features visible in the image, including furniture, lighting, colors, and architectural elements."
+                content: "Describe room features like furniture, lighting, and colors."
               },
               {
                 role: "user",
                 content: [
-                  { type: "text", text: `Describe the key features and elements visible in this ${roomType}. Focus on the actual elements you can see in the image, including furniture, lighting, colors, and any distinctive features.` },
+                  { type: "text", text: `Describe the key elements of this ${roomType}.` },
                   { type: "image_url", url: imageUrl }
                 ]
               }
             ]
-          }),
+          })
         });
 
         if (!descriptionResponse.ok) {
           const errorText = await descriptionResponse.text();
-          console.error('Visual description API error:', errorText);
-          throw new Error(`Visual description failed: ${errorText}`);
+          throw new Error(`Description failed: ${errorText}`);
         }
 
         const descriptionData = await descriptionResponse.json();
-        console.log('Visual description response:', descriptionData);
-        
         const visualDescription = descriptionData.choices[0].message.content.trim();
-        console.log('Step 3: Generated visual description');
 
-        // Step 3: Generate Caption
+        // Step 3: Caption Generation
         const captionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4-vision-preview",
-            max_tokens: 1000,
+            model: "gpt-4-1106-preview",
+            max_tokens: 100,
             messages: [
               {
                 role: "system",
-                content: "Create a brief, engaging real estate caption that accurately describes the room's key features."
+                content: "Generate a short real estate caption."
               },
               {
                 role: "user",
                 content: [
-                  { type: "text", text: `Create a compelling, accurate caption (50-80 characters) for this ${roomType} highlighting its main features.` },
+                  { type: "text", text: `Create a concise caption for this ${roomType}.` },
                   { type: "image_url", url: imageUrl }
                 ]
               }
             ]
-          }),
+          })
         });
 
         if (!captionResponse.ok) {
           const errorText = await captionResponse.text();
-          console.error('Caption generation API error:', errorText);
-          throw new Error(`Caption generation failed: ${errorText}`);
+          throw new Error(`Caption failed: ${errorText}`);
         }
 
         const captionData = await captionResponse.json();
-        console.log('Caption generation response:', captionData);
-        
         const caption = captionData.choices[0].message.content.trim();
-        console.log('Step 4: Generated final caption');
 
         results.push({
           imageUrl,
@@ -152,56 +140,27 @@ serve(async (req) => {
           success: true
         });
 
-        console.log('Successfully processed image:', {
-          imageUrl,
-          room: roomType,
-          visualDescription: visualDescription.substring(0, 100) + '...',
-          caption
-        });
-
       } catch (error) {
-        console.error(`Error processing image ${imageUrl}:`, error);
+        console.error(`Error processing ${imageUrl}:`, error);
         results.push({
           imageUrl,
-          error: `Failed to analyze image: ${error.message}`,
-          success: false,
-          room: 'Unknown',
-          visualDescription: '',
-          caption: ''
+          error: error.message,
+          success: false
         });
       }
     }
 
-    const response = {
-      results,
-      metadata: {
-        total: results.length,
-        successful: results.filter(r => r.success).length
-      }
-    };
-
-    console.log('Final response:', response);
-
     return new Response(
-      JSON.stringify(response),
+      JSON.stringify({ results, metadata: { total: results.length } }),
       {
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   } catch (error) {
     console.error('Fatal error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: error.stack
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
