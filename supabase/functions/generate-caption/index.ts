@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.200.0/http/server.ts";
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -38,7 +39,7 @@ serve(async (req) => {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4-1106-preview",
+            model: "gpt-4-vision-preview",
             max_tokens: 1000,
             messages: [
               {
@@ -75,7 +76,7 @@ serve(async (req) => {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4-1106-preview",
+            model: "gpt-4-vision-preview",
             max_tokens: 1000,
             messages: [
               {
@@ -106,7 +107,7 @@ serve(async (req) => {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4-1106-preview",
+            model: "gpt-4-vision-preview",
             max_tokens: 100,
             messages: [
               {
