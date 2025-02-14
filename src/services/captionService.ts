@@ -5,7 +5,6 @@ interface CaptionResult {
   imageUrl: string;
   room: string;
   visualDescription: string;
-  caption: string;
   success: boolean;
   error?: string;
 }
@@ -14,7 +13,6 @@ interface ApiResponse {
   results: CaptionResult[];
   metadata: {
     total: number;
-    successful: number;
   };
 }
 
@@ -53,7 +51,7 @@ async function uploadImageAndGetUrl(file: File): Promise<string> {
 }
 
 export const generateCaption = async (imageUrl: string): Promise<CaptionResult | null> => {
-  console.log('Generating caption for single image:', imageUrl);
+  console.log('Generating analysis for single image:', imageUrl);
   
   try {
     const { data, error } = await supabase.functions.invoke<ApiResponse>('generate-caption', {
@@ -66,11 +64,11 @@ export const generateCaption = async (imageUrl: string): Promise<CaptionResult |
     }
 
     const result = data?.results?.[0];
-    console.log('Caption generation result:', result);
+    console.log('Analysis result:', result);
     
     return result || null;
   } catch (error) {
-    console.error('Error generating caption:', error);
+    console.error('Error generating analysis:', error);
     return null;
   }
 };
@@ -78,7 +76,7 @@ export const generateCaption = async (imageUrl: string): Promise<CaptionResult |
 export const generateCaptionsForImages = async (
   images: File[]
 ): Promise<CaptionResult[]> => {
-  console.log('Starting caption generation for', images.length, 'images');
+  console.log('Starting analysis for', images.length, 'images');
   
   const uploadedUrls: string[] = [];
   const results: CaptionResult[] = [];
@@ -95,7 +93,6 @@ export const generateCaptionsForImages = async (
           imageUrl: URL.createObjectURL(image),
           room: 'Upload Failed',
           visualDescription: '',
-          caption: `Failed to upload: ${error.message}`,
           success: false,
           error: error.message
         });
@@ -120,14 +117,14 @@ export const generateCaptionsForImages = async (
 
     if (!data?.results) {
       console.error('Invalid response from function:', data);
-      throw new Error('Invalid response from caption generation function');
+      throw new Error('Invalid response from analysis function');
     }
 
-    console.log('Caption generation successful:', data.results);
+    console.log('Analysis successful:', data.results);
     
     return data.results;
   } catch (error) {
-    console.error('Error in caption generation process:', error);
+    console.error('Error in analysis process:', error);
     
     // Cleanup uploaded files in case of error
     for (const url of uploadedUrls) {
@@ -147,7 +144,6 @@ export const generateCaptionsForImages = async (
       imageUrl: URL.createObjectURL(image),
       room: 'Error',
       visualDescription: '',
-      caption: `Processing failed: ${error.message}`,
       success: false,
       error: error.message
     }));

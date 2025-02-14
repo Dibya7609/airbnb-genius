@@ -27,7 +27,7 @@ serve(async (req) => {
     const results = [];
     for (const imageUrl of imageUrls) {
       try {
-        console.log('Step 1: Starting analysis for image:', imageUrl);
+        console.log('Starting analysis for image:', imageUrl);
 
         const openAIHeaders = {
           'Authorization': `Bearer ${openAIApiKey}`,
@@ -39,7 +39,7 @@ serve(async (req) => {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: "gpt-4-vision-preview",
             max_tokens: 1000,
             messages: [
               {
@@ -76,7 +76,7 @@ serve(async (req) => {
           method: 'POST',
           headers: openAIHeaders,
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: "gpt-4-vision-preview",
             max_tokens: 1000,
             messages: [
               {
@@ -102,42 +102,10 @@ serve(async (req) => {
         const descriptionData = await descriptionResponse.json();
         const visualDescription = descriptionData.choices[0].message.content.trim();
 
-        // Step 3: Caption Generation
-        const captionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: openAIHeaders,
-          body: JSON.stringify({
-            model: "gpt-4o",
-            max_tokens: 100,
-            messages: [
-              {
-                role: "system",
-                content: "Generate a short real estate caption."
-              },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: `Create a concise caption for this ${roomType}.` },
-                  { type: "image_url", url: imageUrl }
-                ]
-              }
-            ]
-          })
-        });
-
-        if (!captionResponse.ok) {
-          const errorText = await captionResponse.text();
-          throw new Error(`Caption failed: ${errorText}`);
-        }
-
-        const captionData = await captionResponse.json();
-        const caption = captionData.choices[0].message.content.trim();
-
         results.push({
           imageUrl,
           room: roomType,
           visualDescription,
-          caption,
           success: true
         });
 
