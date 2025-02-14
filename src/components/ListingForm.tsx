@@ -10,7 +10,6 @@ interface PhotoContent {
   imageUrl: string;
   room: string;
   visualDescription: string;
-  caption: string;
 }
 
 interface PropertyDetails {
@@ -132,11 +131,10 @@ ${houseRulesList}
       setGeneratedContent({
         title: "Serene Beachfront Haven - Modern Luxury Meets Ocean Views",
         description,
-        photos: photoContents.map(({ imageUrl, room, caption }) => ({
+        photos: photoContents.map(({ imageUrl, room, visualDescription }) => ({
           imageUrl,
           room,
-          visualDescription: `Professional photograph showcasing: ${caption}`,
-          caption,
+          visualDescription,
         })),
         neighborhood: {
           description: "Located in the prestigious Palm Beach area, known for its pristine beaches and upscale dining. A perfect blend of privacy and convenience, with easy access to local attractions.",
@@ -166,7 +164,7 @@ ${houseRulesList}
     } catch (error) {
       toast({
         title: "Error Generating Content",
-        description: "There was an error generating captions for your images. Please try again.",
+        description: "There was an error generating descriptions for your images. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -279,7 +277,7 @@ ${houseRulesList}
                 <h4 className="font-medium mb-2">Photos and Descriptions</h4>
                 <div className="space-y-4">
                   {generatedContent.photos.map((photo, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-3 bg-secondary rounded-lg">
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-secondary rounded-lg">
                       <div className="aspect-video relative">
                         <img
                           src={photo.imageUrl}
@@ -294,10 +292,6 @@ ${houseRulesList}
                       <div className="space-y-2">
                         <h5 className="font-medium">Visual Description</h5>
                         <p className="text-sm">{photo.visualDescription}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <h5 className="font-medium">Caption</h5>
-                        <p className="text-sm">{photo.caption}</p>
                       </div>
                     </div>
                   ))}
